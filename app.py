@@ -34,7 +34,7 @@ def generate_pdf(topic):
 def index():
     return render_template('index.html')
 
-@app.route('/generate', methods=['POST'])
+@app.route('/generate', methods=['GET'])
 def generate():
     try:
         topic = request.form['topic']
@@ -58,7 +58,7 @@ def generate():
             ]
         }
 
-        response = requests.post(
+        response = requests.get(
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {RESEND_API_KEY}",
