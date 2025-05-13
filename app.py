@@ -29,10 +29,13 @@ def generate_pdf(topic):
     c.save()
     buffer.seek(0)
     return buffer
-
-@app.route('/')
+    @app.route('/', methods=["GET", "HEAD"])
 def index():
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        app.logger.error(f"Error rendering index.html: {e}")
+        return "Internal Server Error", 500
 
 @app.route('/generate', methods=['GET'])
 def generate():
