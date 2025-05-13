@@ -29,7 +29,8 @@ def generate_pdf(topic):
     c.save()
     buffer.seek(0)
     return buffer
-    @app.route('/', methods=["GET", "HEAD"])
+
+@app.route('/', methods=["GET", "HEAD"])
 def index():
     try:
         return render_template('index.html')
@@ -37,7 +38,7 @@ def index():
         app.logger.error(f"Error rendering index.html: {e}")
         return "Internal Server Error", 500
 
-@app.route('/generate', methods=['GET'])
+@app.route('/generate', methods=['POST'])
 def generate():
     try:
         topic = request.form['topic']
@@ -61,7 +62,7 @@ def generate():
             ]
         }
 
-        response = requests.get(
+        response = requests.post(
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {RESEND_API_KEY}",
@@ -96,4 +97,4 @@ def add_google_analytics(response):
     return response
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
