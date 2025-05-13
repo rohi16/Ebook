@@ -1,12 +1,108 @@
 <!DOCTYPE html>
-<html>
-<head><title>eBook Generator</title></head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-Powered eBook Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f7f9fc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    form {
+      background: white;
+      padding: 25px 30px;
+      border-radius: 12px;
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 400px;
+    }
+
+    label {
+      display: block;
+      text-align: left;
+      margin-top: 15px;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #555;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    button:hover {
+      background-color: #43a047;
+    }
+
+    #loading {
+      margin-top: 15px;
+      display: none;
+      font-weight: bold;
+      color: #444;
+    }
+
+    @media (max-width: 480px) {
+      form {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
 <body>
-    <h1>Generate Your AI-Powered eBook</h1>
-    <form action="/generate" method="Post">
-        Topic: <input type="text" name="topic" required><br>
-        Email: <input type="email" name="email" required><br>
-        <button type="submit">Generate eBook</button>
-    </form>
+
+  <h1>Generate Your AI-Powered eBook</h1>
+
+  <form action="/generate" method="post" onsubmit="showLoading()">
+    <label for="topic">Topic:</label>
+    <input type="text" id="topic" name="topic" placeholder="e.g. Passive income with AI" required>
+
+    <label for="email">Email:</label>
+    <input type="email" id="email" name="email" placeholder="you@example.com" required>
+
+    <button type="submit">Generate eBook</button>
+    <div id="loading">Generating your eBook, please wait...</div>
+  </form>
+
+  <script>
+    function showLoading() {
+      document.getElementById('loading').style.display = 'block';
+    }
+  </script>
+
 </body>
 </html>
