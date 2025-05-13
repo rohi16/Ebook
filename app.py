@@ -29,7 +29,6 @@ def generate_pdf(topic):
     c.save()
     buffer.seek(0)
     return buffer
-
 @app.route('/', methods=["GET", "HEAD"])
 def index():
     try:
