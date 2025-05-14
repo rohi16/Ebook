@@ -1,8 +1,9 @@
-<!DOCTYPE html>
+
+    <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI-Powered eBook Generator</title>
   <style>
     body {
@@ -72,6 +73,13 @@
       color: #444;
     }
 
+    .flash-message {
+      margin-bottom: 20px;
+      color: green;
+      font-weight: bold;
+      text-align: center;
+    }
+
     @media (max-width: 480px) {
       form {
         padding: 20px;
@@ -87,12 +95,23 @@
 
   <h1>Generate Your AI-Powered eBook</h1>
 
+  <!-- Flash Messages -->
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="flash-message">
+        {% for message in messages %}
+          {{ message }}
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
   <form action="/generate" method="post" onsubmit="showLoading()">
     <label for="topic">Topic:</label>
-    <input type="text" id="topic" name="topic" placeholder="e.g. Passive income with AI" required>
+    <input type="text" id="topic" name="topic" placeholder="e.g. Passive income with AI" required />
 
     <label for="email">Email:</label>
-    <input type="email" id="email" name="email" placeholder="you@example.com" required>
+    <input type="email" id="email" name="email" placeholder="you@example.com" required />
 
     <button type="submit">Generate eBook</button>
     <div id="loading">Generating your eBook, please wait...</div>
