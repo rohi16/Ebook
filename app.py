@@ -1,88 +1,114 @@
-import requests
-import base64
-import io
 import os
+import io
+import csv
+import base64
 import logging
-from flask import Flask, render_template, request
-from reportlab.lib.pagesizes import letter
+import requests
+import openai
+from flask import Flask, render_template, request, redirect, url_for, flash
 from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "defaultsecret")
 logging.basicConfig(level=logging.DEBUG)
 
+# API Keys
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-if not RESEND_API_KEY:
-    logging.error("RESEND_API_KEY not set in environment variables")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 
-def generate_pdf(topic):
+# Save lead
+def save_lead(email, topic):
+    with open("leads.csv", "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([email, topic])
+    logging.info(f"Saved lead: {email} | {topic}")
+
+# Generate content with GPT
+def generate_content(topic):
+    prompt = f"Write a detailed short eBook about '{topic}' including useful tips, strategies, and examples."
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response['choices'][0]['message']['content']
+
+# Create PDF from content
+def generate_pdf(topic, content):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     c.setFont("Helvetica", 16)
-    c.drawString(100, 750, f"eBook on {topic}")
+    c.drawString(100, 750, f"eBook: {topic}")
     c.setFont("Helvetica", 12)
-    c.drawString(100, 730, "Generated using AI-powered tools.")
-    content = f"This is an example eBook on {topic}.\nThis content was generated using AI.\n"
-    y_position = 710
-    for line in content.split("\n"):
-        c.drawString(100, y_position, line)
-        y_position -= 20
+    y = 730
+    for line in content.split('\n'):
+        for wrapped in [line[i:i+90] for i in range(0, len(line), 90)]:
+            c.drawString(100, y, wrapped)
+            y -= 20
+            if y < 50:
+                c.showPage()
+                c.setFont("Helvetica", 12)
+                y = 750
     c.save()
     buffer.seek(0)
     return buffer
-@app.route('/', methods=["GET", "HEAD"])
+
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    try:
-        return render_template('index.html')
-    except Exception as e:
-        app.logger.error(f"Error rendering index.html: {e}")
-        return "Internal Server Error", 500
+    if request.method == 'POST':
+        try:
+            topic = request.form['topic']
+            email = request.form['email']
 
-@app.route('/generate', methods=['POST'])
-def generate():
-    try:
-        topic = request.form['topic']
-        email = request.form['email']
-        logging.info(f"Generating PDF for topic: {topic}")
+            # Save the lead
+            save_lead(email, topic)
 
-        buffer = generate_pdf(topic)
-        encoded_pdf = base64.b64encode(buffer.read()).decode()
+            # Generate content and PDF
+            content = generate_content(topic)
+            pdf_buffer = generate_pdf(topic, content)
+            encoded_pdf = base64.b64encode(pdf_buffer.read()).decode()
 
-        data = {
-            "from": "your-email@onresend.com",
-            "to": [email],
-            "subject": f"Your eBook on {topic}",
-            "text": f"Hi! Here is your eBook on {topic}.",
-            "attachments": [
-                {
-                    "filename": f"{topic.replace(' ', '_')}.pdf",
-                    "content": encoded_pdf,
-                    "content_type": "application/pdf"
-                }
-            ]
-        }
+            # Send email using Resend
+            data = {
+                "from": "your-email@onresend.com",
+                "to": [email],
+                "subject": f"Your eBook on {topic}",
+                "text": f"Hi! Attached is your eBook on {topic}.",
+                "attachments": [
+                    {
+                        "filename": f"{topic.replace(' ', '_')}.pdf",
+                        "content": encoded_pdf,
+                        "content_type": "application/pdf"
+                    }
+                ]
+            }
 
-        response = requests.post(
-            "https://api.resend.com/emails",
-            headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json=data
-        )
+            response = requests.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json=data
+            )
 
-        if response.status_code == 200:
-            logging.info("Email sent successfully")
-            return "eBook sent to your email!"
-        else:
-            logging.error(f"Email sending failed: {response.text}")
-            return f"Failed to send email: {response.text}"
-    except Exception as e:
-        logging.exception("An error occurred in /generate")
-        return f"Internal error: {str(e)}"
+            if response.status_code == 200:
+                flash("Your eBook was sent successfully!")
+            else:
+                flash("Failed to send email. Please try again.")
+
+        except Exception as e:
+            logging.exception("Error during eBook generation")
+            flash(f"An error occurred: {str(e)}")
+
+        return redirect(url_for('index'))
+
+    return render_template('index.html')
 
 @app.after_request
 def add_google_analytics(response):
-    google_analytics_script = """
+    script = """
     <script async src="https://www.googletagmanager.com/gtag/js?id=UA-XXXXXXXXX-X"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -92,7 +118,7 @@ def add_google_analytics(response):
     </script>
     """
     if response.content_type == "text/html; charset=utf-8":
-        response.set_data(response.get_data().replace(b"</body>", google_analytics_script.encode() + b"</body>"))
+        response.set_data(response.get_data().replace(b"</body>", script.encode() + b"</body>"))
     return response
 
 if __name__ == "__main__":
