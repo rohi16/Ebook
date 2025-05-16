@@ -31,7 +31,7 @@ def save_lead(email, topic):
 def generate_content(topic):
     prompt = f"Write a detailed short eBook about '{topic}' including useful tips, strategies, and examples."
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4o",  # Or "gpt-4-turbo" if you prefer
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content
