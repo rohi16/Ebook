@@ -32,7 +32,7 @@ def save_lead(email, topic):
 def generate_content(topic):
     prompt = f"Write a detailed short eBook about '{topic}' including useful tips, strategies, and examples."
     response = openai.ChatCompletion.create(
-        model="openrouter/openai/gpt-4",  # You can change this to another model like 'mistralai/mistral-7b-instruct'
+        model="openai/gpt-4",  # or another like 'mistralai/mistral-7b-instruct'
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message['content']
