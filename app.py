@@ -1,19 +1,13 @@
-from flask import Flask, request, render_template_string
+import os
 import requests
-import smtplib
-from email.mime.text import MIMEText
+from flask import Flask, request, render_template_string
 
 app = Flask(__name__)
 
-OPENROUTER_API_KEY = "YOUR_OPENROUTER_API_KEY"
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USERNAME = "your.email@gmail.com"
-SMTP_PASSWORD = "your-email-app-password"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+GUMROAD_LINK = os.getenv("GUMROAD_LINK", "")
 
-GUMROAD_LINK = "https://gumroad.com/l/yourproduct"  # optional promo link
-
-# Simple HTML form for topic + email
 HTML_FORM = """
 <!doctype html>
 <title>AI eBook Generator</title>
@@ -44,16 +38,20 @@ def generate_ebook_content(topic):
     content = result["choices"][0]["message"]["content"]
     return content
 
-def send_email(recipient, subject, body):
-    msg = MIMEText(body, "plain")
-    msg["Subject"] = subject
-    msg["From"] = SMTP_USERNAME
-    msg["To"] = recipient
-
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls()
-        server.login(SMTP_USERNAME, SMTP_PASSWORD)
-        server.send_message(msg)
+def send_email_via_resend(to_email, subject, body):
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    data = {
+        "from": "your_email@example.com",  # Replace with your verified "from" email in Resend
+        "to": [to_email],
+        "subject": subject,
+        "text": body,
+    }
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -61,11 +59,12 @@ def index():
     if request.method == "POST":
         topic = request.form.get("topic")
         email = request.form.get("email")
+
         try:
             ebook_content = generate_ebook_content(topic)
-            # Optionally add Gumroad promo at the end
-            ebook_content += f"\n\nEnjoyed this eBook? Check out more at {GUMROAD_LINK}"
-            send_email(email, f"Your AI-Generated eBook on {topic}", ebook_content)
+            if GUMROAD_LINK:
+                ebook_content += f"\n\nEnjoyed this eBook? Check out more at {GUMROAD_LINK}"
+            send_email_via_resend(email, f"Your AI-Generated eBook on {topic}", ebook_content)
             message = f"Success! The eBook on '{topic}' was sent to {email}."
         except Exception as e:
             message = f"Error: {str(e)}"
