@@ -4,7 +4,7 @@ import csv
 import base64
 import logging
 import requests
-from openai import OpenAI  # Updated import
+import openai
 from flask import Flask, render_template, request, redirect, url_for, flash
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -17,8 +17,9 @@ logging.basicConfig(level=logging.DEBUG)
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Initialize OpenAI client (new method)
-client = OpenAI(api_key=OPENAI_API_KEY)
+# Configure OpenRouter
+openai.api_key = OPENAI_API_KEY
+openai.api_base = "https://openrouter.ai/api/v1"
 
 # Save lead
 def save_lead(email, topic):
@@ -27,14 +28,14 @@ def save_lead(email, topic):
         writer.writerow([email, topic])
     logging.info(f"Saved lead: {email} | {topic}")
 
-# Generate content with GPT (new method)
+# Generate content using OpenRouter
 def generate_content(topic):
     prompt = f"Write a detailed short eBook about '{topic}' including useful tips, strategies, and examples."
-    response = client.chat.completions.create(
-        model="gpt-4",
+    response = openai.ChatCompletion.create(
+        model="openrouter/openai/gpt-4",  # You can change this to another model like 'mistralai/mistral-7b-instruct'
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.choices[0].message.content
+    return response.choices[0].message['content']
 
 # Create PDF from content
 def generate_pdf(topic, content):
