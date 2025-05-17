@@ -1,74 +1,133 @@
 import os
+import io
+import csv
+import base64
+import logging
 import requests
-from flask import Flask, request, render_template_string
+from openai import OpenAI  # Updated import
+from flask import Flask, render_template, request, redirect, url_for, flash
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 
-app = Flask(__name__)
+app = Flask(name)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "defaultsecret")
+logging.basicConfig(level=logging.DEBUG)
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+API Keys
+
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-GUMROAD_LINK = os.getenv("GUMROAD_LINK", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-HTML_FORM = """
-<!doctype html>
-<title>AI eBook Generator</title>
-<h2>Generate your AI-powered eBook</h2>
-<form method=post>
-  Topic: <input type=text name=topic required><br>
-  Your Email: <input type=email name=email required><br>
-  <input type=submit value="Generate eBook">
-</form>
-{% if message %}
-<p>{{ message }}</p>
-{% endif %}
-"""
+Initialize OpenAI client (new method)
 
-def generate_ebook_content(topic):
-    prompt = f"Write a detailed eBook about: {topic}"
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "openai/gpt-3.5-turbo",
-        "messages": [{"role": "user", "content": prompt}]
-    }
-    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
-    response.raise_for_status()
-    result = response.json()
-    content = result["choices"][0]["message"]["content"]
-    return content
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-def send_email_via_resend(to_email, subject, body):
-    url = "https://api.resend.com/emails"
-    headers = {
-        "Authorization": f"Bearer {RESEND_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    data = {
-        "from": "your_email@example.com",  # Replace with your verified "from" email in Resend
-        "to": [to_email],
-        "subject": subject,
-        "text": body,
-    }
-    response = requests.post(url, headers=headers, json=data)
-    response.raise_for_status()
+Save lead
 
-@app.route("/", methods=["GET", "POST"])
+def save_lead(email, topic):
+with open("leads.csv", "a", newline="") as f:
+writer = csv.writer(f)
+writer.writerow([email, topic])
+logging.info(f"Saved lead: {email} | {topic}")
+
+Generate content with GPT (new method)
+
+def generate_content(topic):
+prompt = f"Write a detailed short eBook about '{topic}' including useful tips, strategies, and examples."
+response = client.chat.completions.create(
+model="gpt-4",
+messages=[{"role": "user", "content": prompt}]
+)
+return response.choices[0].message.content
+
+Create PDF from content
+
+def generate_pdf(topic, content):
+buffer = io.BytesIO()
+c = canvas.Canvas(buffer, pagesize=letter)
+c.setFont("Helvetica", 16)
+c.drawString(100, 750, f"eBook: {topic}")
+c.setFont("Helvetica", 12)
+y = 730
+for line in content.split('\n'):
+for wrapped in [line[i:i+90] for i in range(0, len(line), 90)]:
+c.drawString(100, y, wrapped)
+y -= 20
+if y < 50:
+c.showPage()
+c.setFont("Helvetica", 12)
+y = 750
+c.save()
+buffer.seek(0)
+return buffer
+
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    message = None
-    if request.method == "POST":
-        topic = request.form.get("topic")
-        email = request.form.get("email")
+if request.method == 'POST':
+try:
+topic = request.form['topic']
+email = request.form['email']
 
-        try:
-            ebook_content = generate_ebook_content(topic)
-            if GUMROAD_LINK:
-                ebook_content += f"\n\nEnjoyed this eBook? Check out more at {GUMROAD_LINK}"
-            send_email_via_resend(email, f"Your AI-Generated eBook on {topic}", ebook_content)
-            message = f"Success! The eBook on '{topic}' was sent to {email}."
-        except Exception as e:
-            message = f"Error: {str(e)}"
-    return render_template_string(HTML_FORM, message=message)
+# Save the lead  
+        save_lead(email, topic)  
 
-if __name__ == "__main__":
-    app.run(debug=True)
+        # Generate content and PDF  
+        content = generate_content(topic)  
+        pdf_buffer = generate_pdf(topic, content)  
+        encoded_pdf = base64.b64encode(pdf_buffer.read()).decode()  
+
+        # Send email using Resend  
+        data = {  
+            "from": "your-email@onresend.com",  
+            "to": [email],  
+            "subject": f"Your eBook on {topic}",  
+            "text": f"Hi! Attached is your eBook on {topic}.",  
+            "attachments": [  
+                {  
+                    "filename": f"{topic.replace(' ', '_')}.pdf",  
+                    "content": encoded_pdf,  
+                    "content_type": "application/pdf"  
+                }  
+            ]  
+        }  
+
+        response = requests.post(  
+            "https://api.resend.com/emails",  
+            headers={  
+                "Authorization": f"Bearer {RESEND_API_KEY}",  
+                "Content-Type": "application/json"  
+            },  
+            json=data  
+        )  
+
+        if response.status_code == 200:  
+            flash("Your eBook was sent successfully!")  
+        else:  
+            flash("Failed to send email. Please try again.")  
+
+    except Exception as e:  
+        logging.exception("Error during eBook generation")  
+        flash(f"An error occurred: {str(e)}")  
+
+    return redirect(url_for('index'))  
+
+return render_template('index.html')
+
+@app.after_request
+def add_google_analytics(response):
+script = """
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-XXXXXXXXX-X"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'UA-XXXXXXXXX-X');
+</script>
+"""
+if response.content_type == "text/html; charset=utf-8":
+response.set_data(response.get_data().replace(b"</body>", script.encode() + b"</body>"))
+return response
+
+if name == "main":
+app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+
